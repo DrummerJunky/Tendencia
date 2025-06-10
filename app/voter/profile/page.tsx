@@ -1,3 +1,4 @@
+// app/voter/profile/page.tsx
 "use client";
 
 import { useEffect } from "react";
@@ -12,29 +13,29 @@ import {
 } from "@/components/ui/card";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { MetaMaskConnector } from "wagmi/connectors/metaMask";
+import { useAccount, useDisconnect } from "wagmi";
 import { CheckCircle, AlertTriangle, Vote } from "lucide-react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 export default function VoterProfilePage() {
   const { user, isAdmin } = useVoting();
   const router = useRouter();
 
-  // Wagmi hooks para conexión
+  // Wagmi hook para saber si hay wallet conectada
   const { isConnected, address } = useAccount();
-  const { connect } = useConnect({
-    connector: new MetaMaskConnector(),
-  });
+  // Hook para desconectar (opcional)
   const { disconnect } = useDisconnect();
 
-  // Redirigir si no hay usuario o es admin
+  // Si no hay usuario o es admin, redirige a /login
   useEffect(() => {
     if (!user || isAdmin) {
       router.push("/login");
     }
   }, [user, isAdmin, router]);
 
-  if (!user) return <div>Cargando...</div>;
+  if (!user) {
+    return <div className="p-4">Cargando…</div>;
+  }
 
   return (
     <div className="p-4">
@@ -42,7 +43,7 @@ export default function VoterProfilePage() {
         <CardHeader>
           <CardTitle>Estado de tu Wallet</CardTitle>
           <CardDescription>
-            Conecta MetaMask para poder votar.
+            Conecta MetaMask (u otra wallet compatible) para poder votar.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center">
@@ -70,11 +71,11 @@ export default function VoterProfilePage() {
                 Wallet No Conectada
               </span>
               <p className="text-sm text-gray-600 mt-2">
-                Debes conectar MetaMask para votar.
+                Debes conectar una wallet para votar.
               </p>
-              <Button onClick={() => connect()} className="mt-4">
-                Conectar MetaMask
-              </Button>
+              <div className="mt-4">
+                <ConnectButton showBalance={false} />
+              </div>
             </>
           )}
         </CardContent>
@@ -93,7 +94,7 @@ export default function VoterProfilePage() {
         </Link>
         {!isConnected && (
           <p className="text-sm text-center text-yellow-600 mt-2">
-            Conecta MetaMask para poder votar
+            Conecta tu wallet para poder votar
           </p>
         )}
       </div>

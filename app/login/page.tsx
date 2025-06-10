@@ -10,8 +10,12 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Vote, Shield, Wallet, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useAccount } from "wagmi"
+import { ConnectButton } from "@rainbow-me/rainbowkit"
+
 
 export default function LoginPage() {
+  const { isConnected } = useAccount()
   const [voterData, setVoterData] = useState({ name: "", email: "" })
   const [adminPassword, setAdminPassword] = useState("")
   const [error, setError] = useState("")
@@ -20,28 +24,32 @@ export default function LoginPage() {
   const router = useRouter()
 
   const handleVoterLogin = async () => {
-    if (!voterData.name || !voterData.email) {
-      setError("Por favor completa todos los campos")
-      return
-    }
-
-    setLoading(true)
-    setError("")
-
-    try {
-      // Simular conexión con MetaMask
-      const success = await login("voter", voterData)
-      if (success) {
-        router.push("/voter/profile")
-      } else {
-        setError("Error al conectar con la wallet")
-      }
-    } catch (err) {
-      setError("Error de conexión")
-    } finally {
-      setLoading(false)
-    }
+  if (!voterData.name || !voterData.email) {
+    setError("Por favor completa todos los campos")
+    return
   }
+
+  if (!isConnected) {
+    setError("Primero debes conectar tu wallet MetaMask")
+    return
+  }
+
+  setLoading(true)
+  setError("")
+
+  try {
+    const success = await login("voter", voterData)
+    if (success) {
+      router.push("/voter/profile")
+    } else {
+      setError("Error al iniciar sesión con la wallet")
+    }
+  } catch (err) {
+    setError("Error de conexión")
+  } finally {
+    setLoading(false)
+  }
+}
 
   const handleAdminLogin = async () => {
     if (!adminPassword) {
@@ -94,7 +102,7 @@ export default function LoginPage() {
                   <Wallet className="h-5 w-5" />
                   Acceso de Votante
                 </CardTitle>
-                <CardDescription>Conecta tu wallet para participar en las elecciones</CardDescription>
+                <CardDescription>Ingresa las credenciales para participar en las elecciones</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -125,12 +133,12 @@ export default function LoginPage() {
                 )}
 
                 <Button onClick={handleVoterLogin} className="w-full bg-red-600 hover:bg-red-700" disabled={loading}>
-                  {loading ? "Conectando..." : "Conectar Wallet"}
+                  {loading ? "Conectando..." : "Iniciar Sesión"}
                 </Button>
 
                 <div className="text-sm text-gray-600 text-center">
-                  <p>Al continuar, se conectará tu wallet MetaMask</p>
-                  <p className="text-xs mt-1">Demo: Cualquier nombre y email válido</p>
+                  <p>Se necesita conectar la wallet para continuar</p>
+                  <p className="text-xs mt-1"></p>
                 </div>
               </CardContent>
             </Card>
@@ -169,7 +177,7 @@ export default function LoginPage() {
                 </Button>
 
                 <div className="text-sm text-gray-600 text-center">
-                  <p className="text-xs">Demo: Contraseña = admin123</p>
+                  <p className="text-xs">Contraseña = admin123</p>
                 </div>
               </CardContent>
             </Card>

@@ -1,7 +1,7 @@
 // lib/contractInfo.ts
 
 export const votingContract = {
-  address: "0xTU_DIRECCION_DEL_CONTRATO_EN_SEPOLIA", // ej. "0xAbCdEf1234…"
+  address: "0xce1049c536F12daDeC9eE0804CC82a7Deb2Ccd3F", 
   abi: [
     {
       inputs: [],
