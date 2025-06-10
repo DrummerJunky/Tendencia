@@ -20,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
 import {
   useAccount,
   useBalance,
@@ -49,7 +48,7 @@ export default function VotingPage() {
   const { isConnected, address } = useAccount();
   const { data: balanceData } = useBalance({ address });
 
-  // chainId activo
+  // chainId
   const chainId = useChainId();
 
   // switchChain
@@ -141,7 +140,12 @@ export default function VotingPage() {
       {/* Lista de candidatos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {candidates.map((candidate) => {
-          const hasVotedOffChain = user.votedCategories.includes(candidate.category);
+          // Depuración: ¿qué contiene candidate.image?
+          console.log("candidate.image:", candidate.image);
+
+          const hasVotedOffChain = user.votedCategories.includes(
+            candidate.category
+          );
 
           return (
             <Card key={candidate.id}>
@@ -152,9 +156,10 @@ export default function VotingPage() {
               <CardContent>
                 <div className="flex justify-center mb-2">
                   <Image
-                    // ← fallback de src si es inválido
+                    // Fallback muy estricto
                     src={
-                      typeof candidate.image === "string" && candidate.image
+                      typeof candidate.image === "string" &&
+                      candidate.image.trim().length > 0
                         ? candidate.image
                         : "/placeholder.svg"
                     }
@@ -198,7 +203,8 @@ export default function VotingPage() {
           <DialogHeader>
             <DialogTitle>Confirmar voto</DialogTitle>
             <DialogDescription>
-              ¿Seguro que deseas emitir tu voto para "{selectedCandidate?.name}"?
+              ¿Seguro que deseas emitir tu voto para "{selectedCandidate?.name}
+              "?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -208,7 +214,9 @@ export default function VotingPage() {
             >
               Cancelar
             </Button>
-            <Button onClick={handleVote}>Confirmar y registrar on-chain</Button>
+            <Button onClick={handleVote}>
+              Confirmar y registrar on-chain
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

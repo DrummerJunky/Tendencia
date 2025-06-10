@@ -1,68 +1,79 @@
 // contexts/voting-context.tsx
-"use client"
+"use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react"
-import { useAccount, useConfig } from "wagmi"
-import { readContract } from "@wagmi/core"
-import { votingContract } from "@/lib/contratoinfo"
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { useAccount, useConfig } from "wagmi";
+import { readContract } from "@wagmi/core";
+import { votingContract } from "@/lib/contratoinfo";
 
-// 1) Lista estática para inicializar (sin votos)
+// 1) Lista estática inicial (sin votos)
 const staticCandidates: Omit<Candidate, "votes">[] = [
-  { id: "1", name: "Ana García",    party: "Partido Democrático", category: "presidencial", image: "/placeholder.svg" },
-      { id: "2", name: "Carlos Mendoza", party: "Partido Liberal",      category: "presidencial", image: "/placeholder.svg" },
-  { id: "3", name: "María López",    party: "Partido Conservador",  category: "presidencial", image: "/placeholder.svg" },
-  { id: "4", name: "Roberto Silva",  party: "Partido Democrático", category: "senatorial",   image: "/placeholder.svg" },
-  { id: "5", name: "Elena Vargas",   party: "Partido Liberal",      category: "senatorial",   image: "/placeholder.svg" },
-  { id: "6", name: "Diego Ruiz",     party: "Partido Conservador",  category: "senatorial",   image: "/placeholder.svg" },
-  { id: "7", name: "Laura Jiménez",  party: "Partido Democrático", category: "diputados",    image: "/placeholder.svg" },
-  { id: "8", name: "Miguel Torres",  party: "Partido Liberal",      category: "diputados",    image: "/placeholder.svg" },
-  { id: "9", name: "Carmen Flores",  party: "Partido Conservador",  category: "diputados",    image: "/placeholder.svg" }
-]
+  { id: "1", name: "Ana García", party: "Partido Democrático", category: "presidencial", image: "/placeholder.svg" },
+  // … tus otros candidatos …
+];
 
 interface Candidate {
-  id: string
-  name: string
-  party: string
-  category: "presidencial" | "senatorial" | "diputados"
-  votes: number
-  image: string
+  id: string;
+  name: string;
+  party: string;
+  category: "presidencial" | "senatorial" | "diputados";
+  votes: number;
+  image: string;
 }
 
 export interface VoteRecord {
-  candidateId: string
-  candidateName: string
-  candidateParty: string
-  category: string
-  timestamp: Date
-  transactionHash: string
+  candidateId: string;
+  candidateName: string;
+  candidateParty: string;
+  category: string;
+  timestamp: Date;
+  transactionHash: string;
 }
 
 export interface VoterProfile {
-  id: string
-  name: string
-  email: string
-  walletAddress: string
-  tokensRemaining: number
-  votedCategories: string[]
-  voteHistory: VoteRecord[]
+  id: string;
+  name: string;
+  email: string;
+  walletAddress: string;
+  tokensRemaining: number;
+  votedCategories: string[];
+  voteHistory: VoteRecord[];
 }
 
-export interface RegisteredUser {
-  id: string
-  name: string
-  email: string
-  walletAddress: string
-  tokensAssigned: number
-  tokensUsed: number
-  registrationDate: Date
-  isActive: boolean
+interface RegisteredUser {
+  id: string;
+  name: string;
+  email: string;
+  walletAddress: string;
+  tokensAssigned: number;
+  tokensUsed: number;
+  registrationDate: Date;
+  isActive: boolean;
 }
 
+interface VotingContextType {
+  user: VoterProfile | null;
+  isAdmin: boolean;
+  candidates: Candidate[];
+  registeredUsers: RegisteredUser[];
+  isElectionActive: boolean;
+  isWalletConnected: boolean;
+  login: (type: "voter" | "admin", credentials?: any) => Promise<boolean>;
+  logout: () => void;
+  vote: (candidateId: string, category: string) => Promise<boolean>;
+  addCandidate: (c: Omit<Candidate, "id" | "votes">) => void;
+  registerUser: (u: Omit<RegisteredUser, "id" | "registrationDate" | "tokensUsed">) => Promise<boolean>;
+  assignTokensToUser: (wallet: string, tokens: number) => Promise<boolean>;
+  assignTokensToAllUsers: (tokens: number) => Promise<boolean>;
+  updateCandidate: (id: string, up: Partial<Candidate>) => void;
+  deleteCandidate: (id: string) => void;
+  updateUserStatus: (wallet: string, active: boolean) => Promise<boolean>;
+  toggleElection: () => void;
+}
 
+const VotingContext = createContext<VotingContextType | undefined>(undefined);
 
-// ——————————————————————————————————————————————————
-// 2) Mock inicial de usuarios (antes de usarlo en useState)
-// ——————————————————————————————————————————————————
+// Lista mock (solo para primera carga)
 const mockRegisteredUsers: RegisteredUser[] = [
   {
     id: "1",
@@ -74,86 +85,48 @@ const mockRegisteredUsers: RegisteredUser[] = [
     registrationDate: new Date(),
     isActive: true,
   },
-  {
-    id: "2",
-    name: "Juan Pérez",
-    email: "juan@example.com",
-    walletAddress: "0x123456789abcdef123456789abcdef123456789a",
-    tokensAssigned: 0,
-    tokensUsed: 0,
-    registrationDate: new Date(Date.now() - 86400000),
-    isActive: true,
-  },
-]
-
-// ——————————————————————————————————————————————————
-// 3) Lista estática de candidatos (sin votos)
-// ——————————————————————————————————————————————————
-
-
-// ——————————————————————————————————————————————————
-// 4) Contexto y proveedor
-// ——————————————————————————————————————————————————
-interface VotingContextType {
-  user: VoterProfile | null
-  isAdmin: boolean
-  candidates: Candidate[]
-  registeredUsers: RegisteredUser[]
-  isElectionActive: boolean
-  isWalletConnected: boolean
-  login: (type: "voter" | "admin", credentials?: any) => Promise<boolean>
-  logout: () => void
-  vote: (candidateId: string, category: string) => Promise<boolean>
-  addCandidate: (c: Omit<Candidate, "id" | "votes">) => void
-  registerUser: (u: Omit<RegisteredUser, "id" | "registrationDate" | "tokensUsed">) => Promise<boolean>
-  assignTokensToUser: (wallet: string, tokens: number) => Promise<boolean>
-  assignTokensToAllUsers: (tokens: number) => Promise<boolean>
-  updateCandidate: (id: string, up: Partial<Candidate>) => void
-  deleteCandidate: (id: string) => void
-  updateUserStatus: (wallet: string, active: boolean) => Promise<boolean>
-  toggleElection: () => void
-}
-
-const VotingContext = createContext<VotingContextType | undefined>(undefined)
+  // …otros mocks…
+];
 
 export function VotingProvider({ children }: { children: React.ReactNode }) {
-  const { address, isConnected } = useAccount()
-  const config = useConfig()
+  const { address, isConnected } = useAccount();
+  const config = useConfig();
 
-  // 4.1) Usuarios con persistencia
+  // Registered users con persistencia
   const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>(() => {
-    if (typeof window === "undefined") return mockRegisteredUsers
-    const saved = localStorage.getItem("registeredUsers")
-    return saved ? JSON.parse(saved) : mockRegisteredUsers
-  })
+    if (typeof window === "undefined") return mockRegisteredUsers;
+    const saved = localStorage.getItem("registeredUsers");
+    return saved ? JSON.parse(saved) : mockRegisteredUsers;
+  });
 
-  // 4.2) Candidatos con persistencia
+  // Candidatos con persistencia
   const [candidates, setCandidates] = useState<Candidate[]>(() => {
-    if (typeof window === "undefined") return staticCandidates.map(c => ({ ...c, votes: 0 }))
-    const saved = localStorage.getItem("candidates")
-    return saved ? JSON.parse(saved) : staticCandidates.map(c => ({ ...c, votes: 0 }))
-  })
+    if (typeof window === "undefined") return staticCandidates.map(c => ({ ...c, votes: 0 }));
+    const saved = localStorage.getItem("candidates");
+    return saved
+      ? JSON.parse(saved)
+      : staticCandidates.map(c => ({ ...c, votes: 0 }));
+  });
 
-  const [user, setUser] = useState<VoterProfile | null>(null)
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [isElectionActive, setIsElectionActive] = useState(true)
+  const [user, setUser] = useState<VoterProfile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isElectionActive, setIsElectionActive] = useState(true);
 
-  const logout = () => {
-    setUser(null)
-    setIsAdmin(false)
-  }
-
-  // 5) Sync a localStorage
+  // Volcar registeredUsers a localStorage
   useEffect(() => {
-    localStorage.setItem("registeredUsers", JSON.stringify(registeredUsers))
-  }, [registeredUsers])
-  useEffect(() => {
-    localStorage.setItem("candidates", JSON.stringify(candidates))
-  }, [candidates])
+    if (typeof window !== "undefined")
+      localStorage.setItem("registeredUsers", JSON.stringify(registeredUsers));
+  }, [registeredUsers]);
 
-  // 6) refrescar votos on-chain
+  // Volcar candidatos a localStorage
   useEffect(() => {
-    ;(async () => {
+    if (typeof window !== "undefined")
+      localStorage.setItem("candidates", JSON.stringify(candidates));
+  }, [candidates]);
+
+  // Refrescar votos on-chain y mezclar sin borrar candidatos nuevos
+  useEffect(() => {
+    async function fetchVotes() {
       const onchain = await Promise.all(
         staticCandidates.map(async (c) => {
           const bn = await readContract(config, {
@@ -161,33 +134,48 @@ export function VotingProvider({ children }: { children: React.ReactNode }) {
             abi: votingContract.abi,
             functionName: "getVotes",
             args: [c.name],
-          })
-          return { ...c, votes: Number(bn) }
+          });
+          return { ...c, votes: Number(bn) };
         })
-      )
+      );
       setCandidates(prev => {
+        // Actualizar votos existentes
         const updated = prev.map(c => {
-          const o = onchain.find(x => x.id === c.id)
-          return o ? { ...c, votes: o.votes } : c
-        })
-        const extras = onchain.filter(o => !updated.some(u => u.id === o.id))
-        return [...updated, ...extras]
-      })
-    })()
-  }, [config])
+          const o = onchain.find(x => x.id === c.id);
+          return o ? { ...c, votes: o.votes } : c;
+        });
+        // Añadir candidatos on-chain nuevos (poco probable)
+        const extras = onchain.filter(o => !updated.some(u => u.id === o.id));
+        return [...updated, ...extras];
+      });
+    }
+    fetchVotes();
+  }, [config]);
 
-  // 7) login
-  const login = async (type: "voter" | "admin", creds?: any) => {
+  // Logout
+  const logout = () => {
+    setUser(null);
+    setIsAdmin(false);
+  };
+
+  // Login
+  const login = async (
+    type: "voter" | "admin",
+    creds?: any
+  ): Promise<boolean> => {
     if (type === "admin") {
       if (creds?.password === "admin123") {
-        setIsAdmin(true)
-        return true
+        setIsAdmin(true);
+        return true;
       }
-      return false
+      return false;
     }
-    if (!address || !isConnected) return false
-    const ru = registeredUsers.find(u => u.walletAddress.toLowerCase() === address.toLowerCase())
-    if (!ru || !ru.isActive) return false
+    // voter branch
+    if (!address || !isConnected) return false;
+    const ru = registeredUsers.find(
+      u => u.walletAddress.toLowerCase() === address.toLowerCase()
+    );
+    if (!ru || !ru.isActive) return false;
     setUser({
       id: ru.id,
       name: ru.name,
@@ -196,42 +184,142 @@ export function VotingProvider({ children }: { children: React.ReactNode }) {
       tokensRemaining: ru.tokensAssigned - ru.tokensUsed,
       votedCategories: [],
       voteHistory: [],
-    })
-    return true
-  }
+    });
+    return true;
+  };
 
-  // 8) vote off-chain + on-chain
+  // Votar off-chain
   const vote = async (candidateId: string, category: string) => {
-    /* tu lógica aquí… */
-    return true
-  }
+    if (
+      !user ||
+      user.tokensRemaining <= 0 ||
+      user.votedCategories.includes(category) ||
+      !isConnected
+    )
+      return false;
+    // Actualizar votos
+    setCandidates(prev =>
+      prev.map(c =>
+        c.id === candidateId ? { ...c, votes: c.votes + 1 } : c
+      )
+    );
+    // Actualizar perfil y registeredUsers
+    setUser(prev =>
+      prev
+        ? {
+            ...prev,
+            tokensRemaining: prev.tokensRemaining - 1,
+            votedCategories: [...prev.votedCategories, category],
+            voteHistory: [
+              ...prev.voteHistory,
+              {
+                candidateId,
+                candidateName: prev.voteHistory.length + 1 + "", // opcional
+                candidateParty: "",
+                category,
+                timestamp: new Date(),
+                transactionHash: "0x" + Math.random().toString(16).slice(2),
+              },
+            ],
+          }
+        : null
+    );
+    setRegisteredUsers(prev =>
+      prev.map(u =>
+        u.walletAddress.toLowerCase() === user.walletAddress.toLowerCase()
+          ? { ...u, tokensUsed: u.tokensUsed + 1 }
+          : u
+      )
+    );
+    return true;
+  };
 
-  // 9) crud candidatos
-  const addCandidate = (data: Omit<Candidate, "id" | "votes">) =>
-    setCandidates(prev => [...prev, { ...data, id: Date.now().toString(), votes: 0 }])
-  const updateCandidate = (id: string, up: Partial<Candidate>) =>
-    setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...up } : c))
-  const deleteCandidate = (id: string) =>
-    setCandidates(prev => prev.filter(c => c.id !== id))
+  // CRUD candidatos
+  const addCandidate = (data: Omit<Candidate, "id" | "votes">) => {
+    setCandidates(prev => [
+      ...prev,
+      { ...data, id: Date.now().toString(), votes: 0 },
+    ]);
+  };
+  const updateCandidate = (id: string, up: Partial<Candidate>) => {
+    setCandidates(prev =>
+      prev.map(c => (c.id === id ? { ...c, ...up } : c))
+    );
+  };
+  const deleteCandidate = (id: string) => {
+    setCandidates(prev => prev.filter(c => c.id !== id));
+  };
 
-  // 10) registrar usuario
-  const registerUser = async (u: Omit<RegisteredUser, "id" | "registrationDate" | "tokensUsed">) => {
-    if (!isAdmin) return false
-    if (registeredUsers.some(x => x.walletAddress.toLowerCase() === u.walletAddress.toLowerCase()))
-      return false
+  // Registrar usuario
+  const registerUser = async (
+    u: Omit<RegisteredUser, "id" | "registrationDate" | "tokensUsed">
+  ): Promise<boolean> => {
+    if (!isAdmin) return false;
+    if (
+      registeredUsers.some(
+        x => x.walletAddress.toLowerCase() === u.walletAddress.toLowerCase()
+      )
+    )
+      return false;
     setRegisteredUsers(prev => [
       ...prev,
-      { ...u, id: Date.now().toString(), registrationDate: new Date(), tokensUsed: 0 }
-    ])
-    return true
-  }
+      { ...u, id: Date.now().toString(), registrationDate: new Date(), tokensUsed: 0 },
+    ]);
+    return true;
+  };
 
-  // 11) tokens & status…
-  const assignTokensToUser = async (_: string, __: number) => true
-  const assignTokensToAllUsers = async (_: number) => true
-  const updateUserStatus = async (_: string, __: boolean) => { logout(); return true }
+  // Asignar tokens a un usuario
+  const assignTokensToUser = async (
+    wallet: string,
+    t: number
+  ): Promise<boolean> => {
+    if (!isAdmin || t <= 0) return false;
+    setRegisteredUsers(prev =>
+      prev.map(u =>
+        u.walletAddress.toLowerCase() === wallet.toLowerCase()
+          ? { ...u, tokensAssigned: u.tokensAssigned + t }
+          : u
+      )
+    );
+    // también actualiza al perfil si es el mismo
+    if (user?.walletAddress.toLowerCase() === wallet.toLowerCase()) {
+      setUser(prev =>
+        prev ? { ...prev, tokensRemaining: prev.tokensRemaining + t } : prev
+      );
+    }
+    return true;
+  };
 
-  const toggleElection = () => setIsElectionActive(x => !x)
+  // Asignar a todos
+  const assignTokensToAllUsers = async (t: number) => {
+    if (!isAdmin || t <= 0) return false;
+    setRegisteredUsers(prev =>
+      prev.map(u =>
+        u.isActive ? { ...u, tokensAssigned: u.tokensAssigned + t } : u
+      )
+    );
+    if (user) {
+      setUser(prev =>
+        prev ? { ...prev, tokensRemaining: prev.tokensRemaining + t } : prev
+      );
+    }
+    return true;
+  };
+
+  // Activar/desactivar usuario
+  const updateUserStatus = async (wallet: string, active: boolean) => {
+    setRegisteredUsers(prev =>
+      prev.map(u =>
+        u.walletAddress.toLowerCase() === wallet.toLowerCase()
+          ? { ...u, isActive: active }
+          : u
+      )
+    );
+    if (!active && user?.walletAddress === wallet) logout();
+    return true;
+  };
+
+  const toggleElection = () => setIsElectionActive(x => !x);
 
   return (
     <VotingContext.Provider
@@ -257,12 +345,13 @@ export function VotingProvider({ children }: { children: React.ReactNode }) {
     >
       {children}
     </VotingContext.Provider>
-  )
+  );
 }
 
-// 12) hook de consumo
 export function useVoting() {
-  const ctx = useContext(VotingContext)
-  if (!ctx) throw new Error("useVoting debe usarse dentro de VotingProvider")
-  return ctx
+  const ctx = useContext(VotingContext);
+  if (!ctx) {
+    throw new Error("useVoting must be used inside VotingProvider");
+  }
+  return ctx;
 }
