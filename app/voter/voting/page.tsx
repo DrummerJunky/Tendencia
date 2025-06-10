@@ -30,11 +30,16 @@ import {
 } from "wagmi";
 import { votingContract } from "@/lib/contratoinfo";
 import Image from "next/image";
-import { AlertCircle, CheckCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 export default function VotingPage() {
-  const { user, isAdmin, candidates, vote: voteOffChain, isElectionActive } =
-    useVoting();
+  const {
+    user,
+    isAdmin,
+    candidates,
+    vote: voteOffChain,
+    isElectionActive,
+  } = useVoting();
   const router = useRouter();
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -44,19 +49,19 @@ export default function VotingPage() {
   const { isConnected, address } = useAccount();
   const { data: balanceData } = useBalance({ address });
 
-  // useChainId devuelve el chainId activo (p.ej. 1 para Mainnet, 11155111 para Sepolia, etc.)
+  // chainId activo
   const chainId = useChainId();
 
-  // useSwitchChain nos da la función para forzar un cambio de red
+  // switchChain
   const { switchChain } = useSwitchChain({
     mutation: {
       onError(error) {
         console.error("Error al cambiar de red:", error);
       },
-    }
+    },
   });
 
-  // Hook para leer y escribir en el contrato Voting.sol en Sepolia
+  // writeContract
   const { writeContract, isPending: isVoting } = useWriteContract({
     mutation: {
       onSuccess(data) {
@@ -66,53 +71,45 @@ export default function VotingPage() {
       onError(error) {
         console.error("Error al emitir voto on-chain:", error);
       },
-    }
+    },
   });
 
-  // Redirigir si no hay usuario o es admin
+  // Redirigir si no hay user o es admin
   useEffect(() => {
     if (!user || isAdmin) {
       router.push("/login");
     }
   }, [user, isAdmin, router]);
 
-    // Cuando la wallet se conecta, forzar el cambio a Sepolia (chainId 11155111)
-    useEffect(() => {
-    if (isConnected) {
-      if (chainId && chainId !== 11155111) {
-        // Intentar cambiar la red a Sepolia
-        switchChain({ chainId: 11155111 });
-      }
+  // Forzar Sepolia
+  useEffect(() => {
+    if (isConnected && chainId && chainId !== 11155111) {
+      switchChain({ chainId: 11155111 });
     }
   }, [isConnected, chainId, switchChain]);
 
   const handleVote = () => {
-  // 1) Si no tiene tokens, abortamos
-  if (!user?.tokensRemaining || user.tokensRemaining <= 0) {
-    alert("No tienes tokens disponibles para votar");
+    // 1) sin tokens aborta
+    if (!user?.tokensRemaining || user.tokensRemaining <= 0) {
+      alert("No tienes tokens disponibles para votar");
+      setShowConfirmDialog(false);
+      return;
+    }
+
+    // 2) on-chain + off-chain
+    if (selectedCandidate && isConnected && chainId === 11155111) {
+      writeContract({
+        address: votingContract.address as `0x${string}`,
+        abi: votingContract.abi,
+        functionName: "vote",
+        args: [selectedCandidate.name],
+      });
+      voteOffChain(selectedCandidate.id, selectedCandidate.category);
+    }
+
+    // 3) cerrar diálogo
     setShowConfirmDialog(false);
-    return;
-  }
-
-  // 2) Si hay candidato seleccionado, wallet conectada y en Sepolia, emitimos tx on-chain
-  if (selectedCandidate && isConnected && chainId === 11155111) {
-    writeContract({
-      address: votingContract.address as `0x${string}`,
-      abi: votingContract.abi,
-      functionName: "vote",
-      args: [selectedCandidate.name],
-    });
-    // 3) Y guardamos también off-chain
-    voteOffChain(
-      selectedCandidate.id,
-      selectedCandidate.category
-    );
-  }
-
-  // 4) Cerramos el diálogo
-  setShowConfirmDialog(false);
-};
-
+  };
 
   if (!user) {
     return <div className="p-4">Cargando…</div>;
@@ -122,18 +119,18 @@ export default function VotingPage() {
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Vota por un candidato</h1>
 
-      {/* 1. Si la wallet está conectada pero NO está en Sepolia, muestro un aviso */}
+      {/* Aviso red */}
       {isConnected && chainId && chainId !== 11155111 && (
         <div className="mb-4 flex items-center space-x-2 rounded-md bg-yellow-100 p-3 text-yellow-800">
           <AlertCircle className="h-5 w-5" />
           <span>
-            Por favor cambia la red de tu wallet a <strong>Sepolia</strong>, actualmente
-            estás en <strong>{chainId}</strong>.
+            Por favor cambia la red de tu wallet a <strong>Sepolia</strong>,{" "}
+            actualmente estás en <strong>{chainId}</strong>.
           </span>
         </div>
       )}
 
-      {/* 2. Mostrar balance de ETH (solo si ya está en Sepolia) */}
+      {/* Balance */}
       {isConnected && chainId === 11155111 && balanceData && (
         <div className="mb-4">
           <strong>Tu balance (Sepolia ETH):</strong> {balanceData.formatted}{" "}
@@ -141,13 +138,13 @@ export default function VotingPage() {
         </div>
       )}
 
+      {/* Lista de candidatos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {candidates.map((candidate) => {
-          // Opcional: chequear si ya votó off-chain
-          const hasVotedOffChain = false;
+          const hasVotedOffChain = user.votedCategories.includes(candidate.category);
 
           return (
-            <Card key={candidate.name}>
+            <Card key={candidate.id}>
               <CardHeader>
                 <CardTitle>{candidate.name}</CardTitle>
                 <CardDescription>{candidate.party}</CardDescription>
@@ -155,7 +152,12 @@ export default function VotingPage() {
               <CardContent>
                 <div className="flex justify-center mb-2">
                   <Image
-                    src={candidate.image}
+                    // ← fallback de src si es inválido
+                    src={
+                      typeof candidate.image === "string" && candidate.image
+                        ? candidate.image
+                        : "/placeholder.svg"
+                    }
                     alt={candidate.name}
                     width={80}
                     height={80}
@@ -171,9 +173,9 @@ export default function VotingPage() {
                     setShowConfirmDialog(true);
                   }}
                   disabled={
-                    !isConnected || // wallet no conectada
-                    isVoting || // tx en curso
-                    chainId !== 11155111 || // no está en Sepolia
+                    !isConnected ||
+                    isVoting ||
+                    chainId !== 11155111 ||
                     hasVotedOffChain
                   }
                   className={`${
@@ -190,7 +192,7 @@ export default function VotingPage() {
         })}
       </div>
 
-      {/* Modal de confirmación */}
+      {/* Confirmación */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
@@ -200,17 +202,18 @@ export default function VotingPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setShowConfirmDialog(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowConfirmDialog(false)}
+            >
               Cancelar
             </Button>
-            <Button onClick={handleVote}>
-              Confirmar y registrar on-chain
-            </Button>
+            <Button onClick={handleVote}>Confirmar y registrar on-chain</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Mostrar TxHash si la tx ya fue enviada */}
+      {/* TxHash */}
       {votingTx && (
         <div className="mt-4 text-green-700">
           Voto enviado. TxHash: {votingTx}

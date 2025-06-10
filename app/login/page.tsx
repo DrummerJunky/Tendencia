@@ -24,11 +24,13 @@ export default function LoginPage() {
   const router = useRouter()
 
   const handleVoterLogin = async () => {
+  // 1️⃣ Validamos que nombre y email no estén vacíos
   if (!voterData.name || !voterData.email) {
     setError("Por favor completa todos los campos")
     return
   }
 
+  // 2️⃣ Validamos que la wallet esté conectada
   if (!isConnected) {
     setError("Primero debes conectar tu wallet MetaMask")
     return
@@ -38,18 +40,23 @@ export default function LoginPage() {
   setError("")
 
   try {
+    // 3️⃣ Intentamos hacer login
     const success = await login("voter", voterData)
     if (success) {
+      // ✅ Si existe el usuario registrado, redirigimos
       router.push("/voter/profile")
     } else {
-      setError("Error al iniciar sesión con la wallet")
+      // 🚫 Si no está registrado en el sistema, avisamos al usuario
+      setError("Tu wallet no está registrada. Contacta al administrador.")
     }
   } catch (err) {
+    // 🛑 Cualquier otro error de conexión
     setError("Error de conexión")
   } finally {
     setLoading(false)
   }
 }
+
 
   const handleAdminLogin = async () => {
     if (!adminPassword) {
